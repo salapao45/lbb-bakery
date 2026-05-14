@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LBB Bakery — คำนวณต้นทุน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --red: #C0392B;
+    --red-dark: #922B21;
+    --red-light: #E74C3C;
+    --beige: #F5EFE6;
+    --beige-mid: #EDE0CE;
+    --beige-dark: #D4C5AD;
+    --cream: #FAF6F0;
+    --black: #1A1A1A;
+    --gray: #6B6B6B;
+    --white: #FFFFFF;
+    --shadow: 0 2px 16px rgba(192,57,43,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Sarabun', sans-serif;
+    background: var(--cream);
+    color: var(--black);
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--red);
+    padding: 0;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+  }
+  .header-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px;
+  }
+  .logo { font-family: 'Playfair Display', serif; color: var(--beige); font-size: 1.7rem; letter-spacing: 2px; }
+  .logo span { color: var(--beige-dark); font-size: 0.9rem; font-family: 'Sarabun', sans-serif; display: block; letter-spacing: 1px; }
+  .tab-nav { display: flex; gap: 6px; }
+  .tab-btn {
+    background: rgba(255,255,255,0.12); border: none; color: var(--beige);
+    padding: 8px 18px; border-radius: 20px; cursor: pointer; font-family: 'Sarabun', sans-serif;
+    font-size: 0.85rem; font-weight: 600; transition: all .2s;
+  }
+  .tab-btn:hover { background: rgba(255,255,255,0.25); }
+  .tab-btn.active { background: var(--beige); color: var(--red-dark); }
+
+  /* MAIN */
+  .main { max-width: 1200px; margin: 0 auto; padding: 28px 16px 60px; }
+
+  /* SECTION CARDS */
+  .card {
+    background: var(--white); border-radius: 16px;
+    box-shadow: var(--shadow); margin-bottom: 22px; overflow: hidden;
+  }
+  .card-header {
+    background: linear-gradient(90deg, var(--red) 0%, var(--red-light) 100%);
+    color: var(--white); padding: 14px 22px; display: flex; align-items: center; gap: 10px;
+  }
+  .card-header h2 { font-size: 1.05rem; font-weight: 700; }
+  .card-body { padding: 20px 22px; }
+
+  /* RECIPE SELECTOR */
+  .recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .recipe-card {
+    border: 2px solid var(--beige-dark); border-radius: 12px; padding: 14px 10px;
+    cursor: pointer; text-align: center; transition: all .2s; background: var(--beige);
+  }
+  .recipe-card:hover { border-color: var(--red); background: #fdf0ee; }
+  .recipe-card.selected { border-color: var(--red); background: #fdf0ee; box-shadow: 0 0 0 3px rgba(192,57,43,0.15); }
+  .recipe-card .emoji { font-size: 1.8rem; margin-bottom: 6px; }
+  .recipe-card .name { font-size: 0.8rem; font-weight: 600; color: var(--black); }
+  .recipe-card .cost { font-size: 0.75rem; color: var(--red); margin-top: 3px; }
+
+  /* INGREDIENT TABLE */
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th {
+    background: var(--beige); color: var(--black); font-weight: 700;
+    padding: 10px 10px; text-align: left; border-bottom: 2px solid var(--beige-dark);
+    font-size: 0.82rem;
+  }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--beige); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fdf8f4; }
+  .del-btn {
+    background: none; border: none; cursor: pointer; color: #ccc;
+    font-size: 1.1rem; padding: 2px 6px; border-radius: 6px; transition: color .15s;
+  }
+  .del-btn:hover { color: var(--red); }
+  input[type=text], input[type=number], select {
+    border: 1px solid var(--beige-dark); border-radius: 8px; padding: 6px 10px;
+    font-family: 'Sarabun', sans-serif; font-size: 0.85rem; background: var(--cream);
+    width: 100%; transition: border .2s; color: var(--black);
+  }
+  input:focus, select:focus { outline: none; border-color: var(--red); background: #fff; }
+  input[type=number] { text-align: right; }
+
+  /* ADD INGREDIENT ROW */
+  .add-rows-area { background: var(--beige); border-radius: 12px; padding: 16px; margin-top: 12px; }
+  .add-rows-area h4 { font-size: 0.88rem; color: var(--red-dark); font-weight: 700; margin-bottom: 10px; }
+  .add-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .add-row-btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn {
+    padding: 9px 20px; border-radius: 10px; border: none; cursor: pointer;
+    font-family: 'Sarabun', sans-serif; font-weight: 700; font-size: 0.88rem; transition: all .18s;
+  }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-red:hover { background: var(--red-dark); }
+  .btn-outline { background: transparent; border: 2px solid var(--red); color: var(--red); }
+  .btn-outline:hover { background: #fdf0ee; }
+  .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+  .btn-add-row { background: var(--beige-dark); border: none; border-radius: 8px; padding: 5px 14px; cursor: pointer; font-size: 0.85rem; color: var(--black); }
+  .btn-add-row:hover { background: var(--beige-mid); }
+
+  /* SUMMARY */
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+  .stat-box {
+    background: var(--beige); border-radius: 12px; padding: 16px 18px;
+    border-left: 4px solid var(--red);
+  }
+  .stat-box.green { border-left-color: #27AE60; }
+  .stat-box.orange { border-left-color: #E67E22; }
+  .stat-box label { font-size: 0.78rem; color: var(--gray); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 4px; }
+  .stat-box .value { font-size: 1.5rem; font-weight: 700; color: var(--black); }
+  .stat-box .value.red { color: var(--red); }
+  .stat-box .value.green { color: #27AE60; }
+
+  /* PRICING CALCULATOR */
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .price-box {
+    background: var(--white); border-radius: 14px; padding: 18px 20px;
+    border: 2px solid var(--beige-dark); transition: all .2s;
+    box-shadow: 0 2px 8px rgba(192,57,43,0.06);
+  }
+  .price-box:hover { border-color: var(--red); }
+  .price-box .cut-label {
+    font-size: 0.88rem; font-weight: 700; color: var(--red-dark);
+    margin-bottom: 10px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--beige-dark);
+  }
+  .price-box .cost-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .price-box .cost-label { font-size: 0.78rem; color: var(--gray); }
+  .price-box .cost-amount { font-size: 1rem; font-weight: 700; color: var(--black); }
+
+  /* SLIDER */
+  .slider-wrap { margin: 10px 0 6px; }
+  .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .slider-header .pct-label { font-size: 0.78rem; color: var(--gray); font-weight: 600; }
+  .slider-header .pct-val {
+    font-size: 1.1rem; font-weight: 700; color: var(--red);
+    background: var(--beige); padding: 2px 10px; border-radius: 8px; min-width: 54px; text-align: center;
+  }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 6px; border-radius: 4px;
+    background: var(--beige-dark); outline: none; cursor: pointer;
+    border: none; padding: 0;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--red); cursor: pointer;
+    box-shadow: 0 1px 6px rgba(192,57,43,0.35);
+    border: 2px solid #fff;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--red); cursor: pointer;
+    box-shadow: 0 1px 6px rgba(192,57,43,0.35);
+    border: 2px solid #fff;
+  }
+  .slider-ticks { display: flex; justify-content: space-between; margin-top: 3px; }
+  .slider-ticks span { font-size: 0.65rem; color: var(--gray); }
+
+  .price-result-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--beige); border-radius: 10px; padding: 10px 14px; margin-top: 12px;
+  }
+  .price-result-row .pr-label { font-size: 0.75rem; color: var(--gray); font-weight: 600; }
+  .price-result-row .pr-val { font-size: 1.15rem; font-weight: 700; }
+  .price-result-row .pr-val.green { color: #27AE60; }
+  .price-result-row .pr-val.red { color: var(--red); }
+
+  .sell-suggest {
+    text-align: center; margin-top: 10px;
+    font-size: 0.78rem; color: var(--gray);
+  }
+  .sell-suggest b { color: var(--red-dark); font-size: 1rem; }
+
+  /* DB TAB */
+  .db-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+  .db-item {
+    background: var(--beige); border-radius: 10px; padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border: 1px solid var(--beige-dark);
+  }
+  .db-item .db-name { font-weight: 600; font-size: 0.88rem; }
+  .db-item .db-meta { font-size: 0.75rem; color: var(--gray); }
+  .db-item .db-cost { color: var(--red); font-weight: 700; font-size: 0.95rem; }
+  .tag { display: inline-block; background: var(--red); color: #fff; font-size: 0.65rem; padding: 2px 7px; border-radius: 10px; font-weight: 700; margin-left: 4px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 700px) {
+    .header-inner { flex-direction: column; gap: 10px; }
+    .add-row { grid-template-columns: 1fr 1fr; }
+    .add-row > *:nth-child(1) { grid-column: 1/-1; }
+  }
+
+  /* PROFIT COLORS */
+  .profit-pos { color: #27AE60; }
+  .profit-neg { color: var(--red); }
+
+  .section-tab { display: none; }
+  .section-tab.active { display: block; }
+
+  .menu-name-input {
+    font-size: 1.1rem; font-weight: 700; border: none; background: transparent;
+    color: var(--white); font-family: 'Playfair Display', serif; width: 260px;
+  }
+  .menu-name-input:focus { outline: none; border-bottom: 1px solid rgba(255,255,255,0.5); }
+
+  .labor-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px dashed var(--beige-dark); margin-top: 6px; }
+  .labor-row label { font-size: 0.88rem; font-weight: 600; color: var(--gray); white-space: nowrap; }
+  .labor-row input { width: 100px; }
+
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+  .badge-beige { background: var(--beige-dark); color: var(--black); }
+  .btn-import { background: var(--red); color: #fff; border: none; display: inline-flex; align-items: center; gap: 4px; }
+
+  /* FIELD LABEL */
+  .field-label { font-size:.82rem;font-weight:700;color:var(--gray);display:block;margin-bottom:5px; }
+
+  /* NEW RECIPE COLUMN HEADERS */
+  .nr-header {
+    display: grid;
+    grid-template-columns: 2.2fr 0.8fr 1fr 1fr 1fr 32px;
+    gap: 8px; padding: 0 0 6px; margin-bottom: 4px;
+    border-bottom: 1px solid var(--beige-dark);
+  }
+  .nr-header span { font-size: .72rem; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .4px; }
+
+  /* NEW RECIPE ROW */
+  .nr-row {
+    display: grid;
+    grid-template-columns: 2.2fr 0.8fr 1fr 1fr 1fr 32px;
+    gap: 8px; margin-bottom: 8px; align-items: center;
+  }
+
+  /* CUSTOM SEARCHABLE DROPDOWN */
+  .ing-picker { position: relative; }
+  .ing-search {
+    width: 100%; border: 1px solid var(--beige-dark); border-radius: 8px;
+    padding: 6px 10px; font-family: 'Sarabun', sans-serif; font-size: .85rem;
+    background: var(--cream); color: var(--black); cursor: pointer;
+    transition: border .2s;
+  }
+  .ing-search:focus { outline: none; border-color: var(--red); background: #fff; }
+  .ing-dropdown {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: #fff; border: 1px solid var(--beige-dark); border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.13); z-index: 200;
+    max-height: 220px; overflow-y: auto;
+  }
+  .ing-dropdown.open { display: block; }
+  .ing-option {
+    padding: 9px 14px; cursor: pointer; font-size: .84rem;
+    border-bottom: 1px solid var(--beige); transition: background .12s;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .ing-option:last-child { border-bottom: none; }
+  .ing-option:hover, .ing-option.highlighted { background: #fdf0ee; }
+  .ing-option .opt-name { font-weight: 600; color: var(--black); }
+  .ing-option .opt-meta { font-size: .72rem; color: var(--gray); }
+  .ing-option .opt-cost { font-size: .78rem; color: var(--red); font-weight: 700; white-space: nowrap; margin-left: 8px; }
+  .ing-search-box {
+    padding: 8px 10px; border-bottom: 1px solid var(--beige-dark); position: sticky; top: 0; background: #fff;
+  }
+  .ing-search-box input {
+    width: 100%; border: 1px solid var(--beige-dark); border-radius: 6px;
+    padding: 5px 10px; font-size: .82rem; font-family: 'Sarabun', sans-serif;
+  }
+  .ing-search-box input:focus { outline: none; border-color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">LBB Bakery
+      <span>ระบบคำนวณต้นทุนขนม</span>
+    </div>
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('recipes',this)">🎂 สูตรขนม</button>
+      <button class="tab-btn" onclick="switchTab('newrecipe',this)">➕ สร้างสูตรใหม่</button>
+      <button class="tab-btn" onclick="switchTab('db',this)">📦 คลังวัตถุดิบ</button>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- TAB: RECIPES -->
+  <div id="tab-recipes" class="section-tab active">
+    <div class="card">
+      <div class="card-header"><span>🎂</span><h2>เลือกสูตรขนม</h2></div>
+      <div class="card-body">
+        <div class="recipe-grid" id="recipeGrid"></div>
+      </div>
+    </div>
+
+    <div id="recipeDetail" style="display:none">
+      <!-- Ingredient Table -->
+      <div class="card">
+        <div class="card-header">
+          <span>🧾</span>
+          <h2 id="detailTitle">รายการวัตถุดิบ</h2>
+          <span style="flex:1"></span>
+          <span class="badge badge-beige" id="detailBadge"></span>
+        </div>
+        <div class="card-body">
+          <div style="overflow-x:auto">
+            <table id="ingredientTable">
+              <thead>
+                <tr>
+                  <th style="width:32%">รายการ</th>
+                  <th>หน่วย</th>
+                  <th>ปริมาณอ้างอิง</th>
+                  <th>ทุน (บาท)</th>
+                  <th>ปริมาณที่ใช้</th>
+                  <th>ต้นทุน</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="ingredientBody"></tbody>
+            </table>
+          </div>
+          <div class="labor-row">
+            <label>ค่าแรง (บาท/ก้อน):</label>
+            <input type="number" id="laborCost" value="15" min="0" onchange="recalcAndSave()" style="width:100px">
+            <label>ค่าส่ง (บาท):</label>
+            <input type="number" id="deliveryCost" value="0" min="0" onchange="recalcAndSave()" style="width:100px">
+          </div>
+
+          <!-- Add ingredient rows -->
+          <div class="add-rows-area">
+            <h4>➕ เพิ่มวัตถุดิบ (เพิ่มได้หลายรายการพร้อมกัน)</h4>
+            <div id="addRowsContainer">
+              <!-- rows injected by JS -->
+            </div>
+            <div class="add-row-btn-row">
+              <button class="btn-add-row" onclick="addInputRow()">+ เพิ่มช่อง</button>
+              <button class="btn btn-red btn-sm" onclick="confirmAddRows()">บันทึกวัตถุดิบ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="card">
+        <div class="card-header"><span>📊</span><h2>สรุปต้นทุน</h2></div>
+        <div class="card-body">
+          <div class="summary-grid" id="summaryGrid"></div>
+        </div>
+      </div>
+
+      <!-- Pricing Calculator -->
+      <div class="card">
+        <div class="card-header"><span>💰</span><h2>คำนวณกำไร — เลื่อน Slider เพื่อเลือก % กำไร</h2></div>
+        <div class="card-body">
+          <div class="pricing-grid" id="pricingGrid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: NEW RECIPE -->
+  <div id="tab-newrecipe" class="section-tab">
+    <div class="card">
+      <div class="card-header"><span>✨</span><h2>สร้างสูตรเมนูใหม่</h2></div>
+      <div class="card-body">
+        <div style="display:flex;gap:14px;margin-bottom:20px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <label class="field-label">ชื่อเมนู</label>
+            <input type="text" id="newMenuName" placeholder="เช่น Matcha Roll Cake" style="font-size:1rem">
+          </div>
+          <div>
+            <label class="field-label">อีโมจิ</label>
+            <input type="text" id="newMenuEmoji" placeholder="🍰" style="width:72px;text-align:center;font-size:1.3rem">
+          </div>
+          <div>
+            <label class="field-label">ประเภท</label>
+            <select id="newMenuType" style="width:180px">
+              <option value="cake">🍰 ขนม (ตัดชิ้น)</option>
+              <option value="drink">🧋 เครื่องดื่ม</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="add-rows-area">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h4 style="margin:0">🧺 วัตถุดิบ</h4>
+            <span style="font-size:.75rem;color:var(--gray)">พิมพ์ค้นหาหรือเลื่อนเลือกจากคลัง</span>
+          </div>
+
+          <!-- column headers -->
+          <div class="nr-header">
+            <span>วัตถุดิบ</span>
+            <span>หน่วย</span>
+            <span>ปริมาณอ้างอิง</span>
+            <span>ทุน (บ.)</span>
+            <span>ปริมาณที่ใช้</span>
+            <span></span>
+          </div>
+
+          <div id="newRecipeRows"></div>
+
+          <div class="add-row-btn-row" style="margin-top:12px">
+            <button class="btn-add-row" onclick="addNewRecipeRow()">+ เพิ่มช่อง</button>
+            <button class="btn btn-red btn-sm" onclick="saveNewRecipe()">💾 บันทึกสูตรเมนู</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: DB -->
+  <div id="tab-db" class="section-tab">
+    <div class="card">
+      <div class="card-header"><span>📦</span><h2>คลังวัตถุดิบ</h2>
+        <span style="flex:1"></span>
+        <span id="dbCount" style="font-size:.82rem;opacity:.8"></span>
+        <button onclick="syncAllToSheets()" style="margin-left:10px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:8px;padding:4px 12px;cursor:pointer;font-family:Sarabun,sans-serif;font-size:.8rem">☁️ Sync ขึ้น Sheet</button>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="dbSearch" placeholder="ค้นหาวัตถุดิบ..." style="flex:1;min-width:180px" oninput="renderDB()">
+          <button class="btn btn-outline btn-sm" onclick="showAddDBModal()">+ เพิ่มรายการเดียว</button>
+          <label class="btn btn-import btn-sm" style="cursor:pointer;margin:0">
+            📥 Import Excel
+            <input type="file" id="importExcelInput" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
+          </label>
+          <button class="btn btn-sm" style="background:#27AE60;color:#fff" onclick="downloadImportGuide()">📄 ดาวน์โหลด Template</button>
+        </div>
+        <div id="importToast" style="display:none;border-radius:10px;padding:10px 16px;margin-bottom:12px;font-size:.85rem"></div>
+        <div class="db-grid" id="dbGrid"></div>
+      </div>
+    </div>
+    <!-- Add DB Modal -->
+    <div id="addDbArea" style="display:none" class="card">
+      <div class="card-header"><span>➕</span><h2>เพิ่มวัตถุดิบในคลัง</h2></div>
+      <div class="card-body">
+        <div class="add-row" style="grid-template-columns:2fr 1fr 1fr 1fr">
+          <input type="text" id="dbNewName" placeholder="ชื่อวัตถุดิบ">
+          <input type="text" id="dbNewUnit" placeholder="หน่วย (กรัม/ฟอง...)">
+          <input type="number" id="dbNewRef" placeholder="ปริมาณอ้างอิง">
+          <input type="number" id="dbNewCost" placeholder="ราคา (บาท)">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-red btn-sm" onclick="addToDB()">บันทึก</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('addDbArea').style.display='none'">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ====== DATA ======
+let ingredientDB = [
+  {name:"cream cheese ฟิลาเดลเฟีย",unit:"กรัม",ref:2000,cost:835},
+  {name:"ไข่ไก่",unit:"ฟอง",ref:30,cost:135},
+  {name:"น้ำตาล",unit:"กรัม",ref:5000,cost:139},
+  {name:"แป้งเค้กริบบิ้น",unit:"กรัม",ref:1000,cost:42},
+  {name:"Heavy cream anchor",unit:"กรัม",ref:1000,cost:229},
+  {name:"กลิ่นวนิลา",unit:"ml",ref:360,cost:850},
+  {name:"เลม่อน",unit:"ลูก",ref:4,cost:72},
+  {name:"เลม่อนเป็น g",unit:"กรัม",ref:40,cost:20},
+  {name:"ลูกเกดขาวเม็ดเล็ก",unit:"กรัม",ref:250,cost:39},
+  {name:"ลูกเกดดำตรานกอินทรี",unit:"กรัม",ref:250,cost:24},
+  {name:"cacao Barry fleur de cao70%",unit:"กรัม",ref:500,cost:591},
+  {name:"เนยออร์คิด บัตเตอร์เบลนด์ เค็ม",unit:"กรัม",ref:1000,cost:379},
+  {name:"นมสด",unit:"กรัม",ref:2000,cost:100},
+  {name:"วิปปิ้งครีม ตราแองเคอร์",unit:"กรัม",ref:1000,cost:229},
+  {name:"กล่องขนมฝาสฐานจัตุรัส สีน้ำตาล",unit:"ชุด",ref:50,cost:172},
+  {name:"แป้งทำขนมปัง ตราหงส์ขาว",unit:"กรัม",ref:1000,cost:70},
+  {name:"แมกกาแรด แป้งขาวโพด",unit:"กรัม",ref:200,cost:25},
+  {name:"เนยออร์คิด จืด",unit:"กรัม",ref:200,cost:110},
+  {name:"แมกกาแรด ครีมออฟ ทาร์ทาร์",unit:"กรัม",ref:200,cost:125},
+  {name:"ซันควิก น้ำผลไม้รวมเข้มข้น",unit:"กรัม",ref:700,cost:180},
+  {name:"เนยชนิดเค็ม ตราถังทอง",unit:"กรัม",ref:454,cost:375},
+  {name:"เนสกาแฟโกลด์เบลนด์",unit:"กรัม",ref:100,cost:203},
+  {name:"แม็คคอร์นิดเพียว เลม่อน",unit:"ml",ref:59,cost:69},
+  {name:"อัลมอนด์สติ๊ก มีเปลือก",unit:"กรัม",ref:500,cost:190},
+  {name:"กล่องใส่เค้ก 1 ปอนด์",unit:"หน่วย",ref:20,cost:300},
+  {name:"ฐานรองเค้ก 1 ปอนด์",unit:"กรัม",ref:20,cost:60},
+  {name:"ถุงพลาสติ๊กใหญ่",unit:"กรัม",ref:450,cost:59},
+  {name:"ส้อมพลาสติก",unit:"ชิ้น",ref:100,cost:45},
+  {name:"ไอซิง",unit:"กรัม",ref:900,cost:52},
+  {name:"lemon glaze",unit:"กรัม",ref:200,cost:125},
+  {name:"ผงฟู อิมเพเรียว",unit:"กรัม",ref:100,cost:40},
+  {name:"เกลือ",unit:"กรัม",ref:150,cost:9},
+  {name:"น้ำมันคาโนลา",unit:"กรัม",ref:1000,cost:120},
+  {name:"vanilla extract",unit:"กรัม",ref:30,cost:45},
+  {name:"บลูเบอร์รี่(ลูกละ 4g)",unit:"กรัม",ref:180,cost:169},
+  {name:"ทิวลิป ดาร์กช๊อกชิพส์ เม็ดใหญ่",unit:"กรัม",ref:550,cost:141},
+  {name:"ผงโกโก้ คาเคาแบร์รี่",unit:"กรัม",ref:1000,cost:1100},
+  {name:"วิปปิ้งครีม ตรามิลแลคโกลด์ ครีม",unit:"กรัม",ref:1000,cost:229},
+  {name:"sp อเมริกา(คอม)",unit:"กรัม",ref:1000,cost:158},
+  {name:"ไฮนซ์ น้ำส้มสายชูหมักจากแอปเปิ้ล",unit:"ml",ref:473,cost:179},
+  {name:"เนยถั่ว",unit:"กรัม",ref:510,cost:189},
+  {name:"น้ำตาลไอซิ่ง",unit:"กรัม",ref:900,cost:39},
+  {name:"น้ำตาลป่นละเอียด",unit:"กรัม",ref:900,cost:41},
+  {name:"น้ำมะพร้าวบ้านแพรว",unit:"กรัม",ref:5000,cost:790},
+  {name:"กะทิ",unit:"กรัม",ref:500,cost:55},
+  {name:"นมข้นจืด",unit:"กรัม",ref:405,cost:28},
+  {name:"นมผงเดรี่ริช",unit:"กรัม",ref:1000,cost:225},
+  {name:"มะพร้าวอ่อนขูด",unit:"กรัม",ref:1000,cost:195},
+  {name:"แป้งกวนไส้",unit:"กรัม",ref:450,cost:31},
+  {name:"ever whip",unit:"กรัม",ref:1000,cost:135},
+  {name:"พลาสติกห่อเค้ก",unit:"cm",ref:100,cost:129},
+  {name:"โอวาเลต",unit:"กรัม",ref:800,cost:209},
+  {name:"กลิ่นส้ม",unit:"กรัม",ref:120,cost:589},
+  {name:"ผงกาแฟ",unit:"หน่วย",ref:160,cost:310},
+  {name:"เนยขาว ตราใบไม้ทอง",unit:"หน่วย",ref:1000,cost:77},
+  {name:"ฟอยส์รองเค้กชีส",unit:"แก้ว",ref:100,cost:45},
+  {name:"ค่าแรง",unit:"คน",ref:1,cost:10},
+];
+
+let recipes = [
+  {id:'almond', name:'Almond Praline', emoji:'🍰', type:'cake', labor:15, delivery:0,
+    ingredients:[
+      {name:"แป้งเค้กริบบิ้น",unit:"กรัม",ref:1000,cost:42,qty:120},
+      {name:"น้ำตาล",unit:"กรัม",ref:5000,cost:139,qty:560},
+      {name:"ไข่ไก่",unit:"ฟอง",ref:30,cost:135,qty:8},
+      {name:"น้ำมันคาโนลา",unit:"กรัม",ref:1000,cost:120,qty:60},
+      {name:"เกลือ",unit:"กรัม",ref:150,cost:9,qty:2},
+      {name:"นมผงเดรี่ริช",unit:"กรัม",ref:1000,cost:225,qty:15},
+      {name:"แมกกาแรด แป้งขาวโพด",unit:"กรัม",ref:200,cost:25,qty:10},
+      {name:"ผงฟู อิมเพเรียว",unit:"กรัม",ref:100,cost:40,qty:2},
+      {name:"ผงกาแฟ",unit:"หน่วย",ref:160,cost:310,qty:25},
+      {name:"แมกกาแรด ครีมออฟ ทาร์ทาร์",unit:"กรัม",ref:200,cost:125,qty:1.2},
+      {name:"อัลมอนด์สติ๊ก มีเปลือก",unit:"กรัม",ref:500,cost:190,qty:250},
+      {name:"เนยออร์คิด บัตเตอร์เบลนด์ เค็ม",unit:"กรัม",ref:1000,cost:379,qty:432},
+      {name:"เนสกาแฟโกลด์เบลนด์",unit:"กรัม",ref:100,cost:203,qty:15},
+      {name:"นมข้นจืด",unit:"กรัม",ref:405,cost:28,qty:280},
+      {name:"เนยขาว ตราใบไม้ทอง",unit:"หน่วย",ref:1000,cost:77,qty:40},
+      {name:"กล่องขนมฝาสฐานจัตุรัส สีน้ำตาล",unit:"ชุด",ref:50,cost:172,qty:1},
+      {name:"พลาสติกห่อเค้ก",unit:"cm",ref:100,cost:129,qty:1},
+      {name:"ฟอยส์รองเค้กชีส",unit:"แก้ว",ref:100,cost:45,qty:1},
+      {name:"ส้อมพลาสติก",unit:"ชิ้น",ref:100,cost:45,qty:1},
+      {name:"ถุงพลาสติ๊กใหญ่",unit:"กรัม",ref:450,cost:59,qty:1},
+    ]
+  },
+  {id:'orange', name:'Orange Cake', emoji:'🍊', type:'cake', labor:15, delivery:0,
+    ingredients:[
+      {name:"ไข่ไก่",unit:"ฟอง",ref:30,cost:135,qty:6},
+      {name:"น้ำตาล",unit:"กรัม",ref:5000,cost:139,qty:160},
+      {name:"แป้งเค้กริบบิ้น",unit:"กรัม",ref:1000,cost:42,qty:200},
+      {name:"โอวาเลต",unit:"กรัม",ref:800,cost:209,qty:20},
+      {name:"ผงฟู อิมเพเรียว",unit:"กรัม",ref:100,cost:40,qty:10},
+      {name:"กลิ่นส้ม",unit:"กรัม",ref:120,cost:589,qty:5},
+      {name:"นมข้นจืด",unit:"กรัม",ref:405,cost:28,qty:60},
+      {name:"เนยออร์คิด บัตเตอร์เบลนด์ เค็ม",unit:"กรัม",ref:1000,cost:379,qty:160},
+      {name:"ซันควิก น้ำผลไม้รวมเข้มข้น",unit:"กรัม",ref:700,cost:180,qty:50},
+      {name:"น้ำตาล",unit:"กรัม",ref:5000,cost:139,qty:120},
+      {name:"แป้งกวนไส้",unit:"กรัม",ref:450,cost:31,qty:25},
+      {name:"ถุงพลาสติ๊กใหญ่",unit:"กรัม",ref:450,cost:59,qty:1},
+      {name:"ส้อมพลาสติก",unit:"ชิ้น",ref:100,cost:45,qty:1},
+      {name:"กล่องขนมฝาสฐานจัตุรัส สีน้ำตาล",unit:"ชุด",ref:50,cost:172,qty:1},
+      {name:"พลาสติกห่อเค้ก",unit:"cm",ref:100,cost:129,qty:1},
+    ]
+  },
+  {id:'coconut', name:'Coconut Cake', emoji:'🥥', type:'cake', labor:15, delivery:0,
+    ingredients:[
+      {name:"ไข่ไก่",unit:"ฟอง",ref:30,cost:135,qty:6},
+      {name:"sp อเมริกา(คอม)",unit:"กรัม",ref:1000,cost:158,qty:20},
+      {name:"น้ำตาล",unit:"กรัม",ref:5000,cost:139,qty:160},
+      {name:"น้ำมะพร้าวบ้านแพรว",unit:"กรัม",ref:5000,cost:790,qty:40},
+      {name:"กะทิ",unit:"กรัม",ref:500,cost:55,qty:14},
+      {name:"นมข้นจืด",unit:"กรัม",ref:405,cost:28,qty:14},
+      {name:"แป้งเค้กริบบิ้น",unit:"กรัม",ref:1000,cost:42,qty:200},
+      {name:"ผงฟู อิมเพเรียว",unit:"กรัม",ref:100,cost:40,qty:5},
+      {name:"นมผงเดรี่ริช",unit:"กรัม",ref:1000,cost:225,qty:25},
+      {name:"เกลือ",unit:"กรัม",ref:150,cost:9,qty:2},
+      {name:"น้ำมันคาโนลา",unit:"กรัม",ref:1000,cost:120,qty:140},
+      {name:"มะพร้าวอ่อนขูด",unit:"กรัม",ref:1000,cost:195,qty:160},
+      {name:"แป้งกวนไส้",unit:"กรัม",ref:450,cost:31,qty:30},
+      {name:"น้ำมะพร้าวบ้านแพรว",unit:"กรัม",ref:5000,cost:790,qty:150},
+      {name:"กะทิ",unit:"กรัม",ref:500,cost:55,qty:250},
+      {name:"เนยออร์คิด บัตเตอร์เบลนด์ เค็ม",unit:"กรัม",ref:1000,cost:379,qty:30},
+      {name:"ever whip",unit:"กรัม",ref:1000,cost:135,qty:300},
+      {name:"ถุงพลาสติ๊กใหญ่",unit:"กรัม",ref:450,cost:59,qty:1},
+      {name:"ส้อมพลาสติก",unit:"ชิ้น",ref:100,cost:45,qty:1},
+      {name:"กล่องขนมฝาสฐานจัตุรัส สีน้ำตาล",unit:"ชุด",ref:50,cost:172,qty:1},
+      {name:"พลาสติกห่อเค้ก",unit:"cm",ref:100,cost:129,qty:1},
+    ]
+  },
+  {id:'chocbasque', name:'Chocolate Basque', emoji:'🍫', type:'cake', labor:10, delivery:0,
+    ingredients:[
+      {name:"cream cheese ฟิลาเดลเฟีย",unit:"กรัม",ref:2000,cost:835,qty:500},
+      {name:"น้ำตาล",unit:"กรัม",ref:5000,cost:139,qty:120},
+      {name:"ไข่ไก่",unit:"ฟอง",ref:30,cost:135,qty:5},
+      {name:"วิปปิ้งครีม ตราแองเคอร์",unit:"กรัม",ref:1000,cost:229,qty:200},
+      {name:"cacao Barry fleur de cao70%",unit:"กรัม",ref:500,cost:591,qty:150},
+      {name:"ทิวลิป ดาร์กช๊อกชิพส์ เม็ดใหญ่",unit:"กรัม",ref:550,cost:141,qty:100},
+      {name:"ผงโกโก้ คาเคาแบร์รี่",unit:"กรัม",ref:1000,cost:1100,qty:10},
+      {name:"แมกกาแรด แป้งขาวโพด",unit:"กรัม",ref:200,cost:25,qty:10},
+      {name:"กล่องใส่เค้ก 1 ปอนด์",unit:"หน่วย",ref:20,cost:300,qty:1},
+      {name:"ฐานรองเค้ก 1 ปอนด์",unit:"กรัม",ref:20,cost:60,qty:1},
+      {name:"ถุงพลาสติ๊กใหญ่",unit:"กรัม",ref:450,cost:59,qty:1},
+      {name:"ส้อมพลาสติก",unit:"ชิ้น",ref:100,cost:45,qty:1},
+    ]
+  },
+  {id:'burnt', name:'Basque Burnt Cheesecake', emoji:'🫕', type:'cake', labor:10, delivery:0,
+    ingredients:[
+      {name:"cream cheese ฟิลาเดลเฟีย",unit:"กรัม",ref:2000,cost:835,qty:430},
+      {name:"ไข่ไก่",unit:"ฟอง",ref:30,cost:135,qty:3},
+      {name:"น้ำตาล",unit:"กรัม",ref:5000,cost:139,qty:110},
+      {name:"แป้งเค้กริบบิ้น",unit:"กรัม",ref:1000,cost:42,qty:20},
+      {name:"Heavy cream anchor",unit:"กรัม",ref:1000,cost:229,qty:270},
+      {name:"กลิ่นวนิลา",unit:"ml",ref:360,cost:850,qty:5},
+      {name:"เลม่อนเป็น g",unit:"กรัม",ref:40,cost:20,qty:6},
+      {name:"กล่องใส่เค้ก 1 ปอนด์",unit:"หน่วย",ref:20,cost:300,qty:1},
+      {name:"ฐานรองเค้ก 1 ปอนด์",unit:"กรัม",ref:20,cost:60,qty:1},
+      {name:"ถุงพลาสติ๊กใหญ่",unit:"กรัม",ref:450,cost:59,qty:1},
+      {name:"ส้อมพลาสติก",unit:"ชิ้น",ref:100,cost:45,qty:1},
+    ]
+  },
+  {id:'lemon', name:'Lemon Cake', emoji:'🍋', type:'cake', labor:10, delivery:0,
+    ingredients:[
+      {name:"เลม่อนเป็น g",unit:"กรัม",ref:40,cost:20,qty:30},
+      {name:"ไอซิง",unit:"กรัม",ref:900,cost:52,qty:80},
+      {name:"lemon glaze",unit:"กรัม",ref:200,cost:125,qty:120},
+      {name:"แป้งเค้กริบบิ้น",unit:"กรัม",ref:1000,cost:42,qty:200},
+      {name:"ไข่ไก่",unit:"ฟอง",ref:30,cost:135,qty:3},
+      {name:"น้ำตาล",unit:"กรัม",ref:5000,cost:139,qty:200},
+      {name:"เนยออร์คิด จืด",unit:"กรัม",ref:200,cost:110,qty:110},
+      {name:"เลม่อน",unit:"ลูก",ref:4,cost:72,qty:1},
+      {name:"นมสด",unit:"กรัม",ref:2000,cost:100,qty:120},
+      {name:"ผงฟู อิมเพเรียว",unit:"กรัม",ref:100,cost:40,qty:5},
+      {name:"น้ำมันคาโนลา",unit:"กรัม",ref:1000,cost:120,qty:30},
+      {name:"vanilla extract",unit:"กรัม",ref:30,cost:45,qty:15},
+      {name:"กล่องใส่เค้ก 1 ปอนด์",unit:"หน่วย",ref:20,cost:300,qty:1},
+      {name:"ฐานรองเค้ก 1 ปอนด์",unit:"กรัม",ref:20,cost:60,qty:1},
+      {name:"ถุงพลาสติ๊กใหญ่",unit:"กรัม",ref:450,cost:59,qty:1},
+      {name:"ส้อมพลาสติก",unit:"ชิ้น",ref:100,cost:45,qty:1},
+    ]
+  },
+];
+
+let currentRecipeId = null;
+let profitPcts = {}; // {recipeId: {6: pct, 8: pct, 10: pct, pound: pct}}
+
+// ====== HELPERS ======
+function calcIngredientCost(ing) {
+  return (ing.cost / ing.ref) * ing.qty;
+}
+function totalIngredientCost(recipe) {
+  return recipe.ingredients.reduce((s,i) => s + calcIngredientCost(i), 0);
+}
+function totalCost(recipe) {
+  return totalIngredientCost(recipe) + (recipe.labor||0) + (recipe.delivery||0);
+}
+function fmt(n) { return isNaN(n) ? '-' : n.toFixed(2); }
+function fmtB(n) { return isNaN(n) ? '-' : n.toFixed(2) + ' บ.'; }
+function pctColor(p) { return p >= 0 ? 'profit-pos' : 'profit-neg'; }
+
+// ====== TABS ======
+function switchTab(tab, el) {
+  document.querySelectorAll('.section-tab').forEach(e => e.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(e => e.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (el) el.classList.add('active');
+  if (tab === 'db') renderDB();
+}
+
+// ====== RECIPE GRID ======
+function renderRecipeGrid() {
+  const grid = document.getElementById('recipeGrid');
+  grid.innerHTML = '';
+  recipes.forEach(r => {
+    const tc = totalCost(r);
+    const div = document.createElement('div');
+    div.className = 'recipe-card' + (currentRecipeId === r.id ? ' selected' : '');
+    div.innerHTML = `<div class="emoji">${r.emoji}</div><div class="name">${r.name}</div><div class="cost">ทุน ${fmtB(tc)}/ก้อน</div>`;
+    div.onclick = () => selectRecipe(r.id);
+    grid.appendChild(div);
+  });
+}
+
+function selectRecipe(id) {
+  currentRecipeId = id;
+  renderRecipeGrid();
+  const recipe = recipes.find(r => r.id === id);
+  document.getElementById('recipeDetail').style.display = 'block';
+  document.getElementById('detailTitle').textContent = recipe.emoji + ' ' + recipe.name;
+  document.getElementById('detailBadge').textContent = recipe.type === 'cake' ? '🍰 เค้กตัดชิ้น' : '🍪 ขนมทั่วไป';
+  document.getElementById('laborCost').value = recipe.labor || 0;
+  document.getElementById('deliveryCost').value = recipe.delivery || 0;
+  renderIngredientTable();
+  recalc();
+  resetAddRows();
+}
+
+function renderIngredientTable() {
+  const recipe = recipes.find(r => r.id === currentRecipeId);
+  const tbody = document.getElementById('ingredientBody');
+  tbody.innerHTML = '';
+  recipe.ingredients.forEach((ing, idx) => {
+    const c = calcIngredientCost(ing);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${ing.name}" onchange="updateIng(${idx},'name',this.value)" list="dbList"></td>
+      <td><input type="text" value="${ing.unit}" onchange="updateIng(${idx},'unit',this.value)" style="width:70px"></td>
+      <td><input type="number" value="${ing.ref}" onchange="updateIng(${idx},'ref',+this.value)"></td>
+      <td><input type="number" value="${ing.cost}" onchange="updateIng(${idx},'cost',+this.value)"></td>
+      <td><input type="number" value="${ing.qty}" onchange="updateIng(${idx},'qty',+this.value)"></td>
+      <td style="text-align:right;font-weight:600;color:var(--red-dark)">${fmt(c)}</td>
+      <td><button class="del-btn" onclick="delIng(${idx})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  // datalist for autocomplete
+  let dl = document.getElementById('dbList');
+  if (!dl) { dl = document.createElement('datalist'); dl.id = 'dbList'; document.body.appendChild(dl); }
+  dl.innerHTML = ingredientDB.map(i => `<option value="${i.name}">`).join('');
+}
+
+function updateIng(idx, field, val) {
+  const recipe = recipes.find(r => r.id === currentRecipeId);
+  recipe.ingredients[idx][field] = val;
+  // autofill from DB
+  if (field === 'name') {
+    const dbItem = ingredientDB.find(d => d.name === val);
+    if (dbItem) {
+      recipe.ingredients[idx].unit = dbItem.unit;
+      recipe.ingredients[idx].ref = dbItem.ref;
+      recipe.ingredients[idx].cost = dbItem.cost;
+      renderIngredientTable();
+    }
+  }
+  recalcAndSave();
+}
+
+function delIng(idx) {
+  const recipe = recipes.find(r => r.id === currentRecipeId);
+  recipe.ingredients.splice(idx, 1);
+  renderIngredientTable();
+  recalc();
+  saveRecipes();
+}
+
+// ====== ADD ROWS ======
+function resetAddRows() {
+  document.getElementById('addRowsContainer').innerHTML = '';
+  addInputRow();
+}
+
+function addInputRow() {
+  const container = document.getElementById('addRowsContainer');
+  const row = document.createElement('div');
+  row.className = 'add-row';
+  row.innerHTML = `
+    <input type="text" placeholder="ชื่อวัตถุดิบ" list="dbList" oninput="autofillRow(this)">
+    <input type="text" placeholder="หน่วย" style="width:80px">
+    <input type="number" placeholder="ปริมาณอ้างอิง">
+    <input type="number" placeholder="ทุน (บาท)">
+    <input type="number" placeholder="ปริมาณที่ใช้">
+    <button class="del-btn" onclick="this.parentElement.remove()">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+function autofillRow(input) {
+  const dbItem = ingredientDB.find(d => d.name === input.value);
+  if (dbItem) {
+    const row = input.parentElement;
+    row.querySelectorAll('input')[1].value = dbItem.unit;
+    row.querySelectorAll('input')[2].value = dbItem.ref;
+    row.querySelectorAll('input')[3].value = dbItem.cost;
+  }
+}
+
+function confirmAddRows() {
+  const recipe = recipes.find(r => r.id === currentRecipeId);
+  const rows = document.querySelectorAll('#addRowsContainer .add-row');
+  let added = 0;
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const name = inputs[0].value.trim();
+    const unit = inputs[1].value.trim() || 'กรัม';
+    const ref = parseFloat(inputs[2].value) || 1;
+    const cost = parseFloat(inputs[3].value) || 0;
+    const qty = parseFloat(inputs[4].value) || 0;
+    if (name) {
+      recipe.ingredients.push({name, unit, ref, cost, qty});
+      added++;
+    }
+  });
+  if (added > 0) {
+    renderIngredientTable();
+    recalc();
+    resetAddRows();
+    renderRecipeGrid();
+    saveRecipes();
+  }
+}
+
+// ====== RECALC ======
+let saveRecipesTimer = null;
+function recalcAndSave() {
+  recalc();
+  clearTimeout(saveRecipesTimer);
+  saveRecipesTimer = setTimeout(saveRecipes, 1500);
+}
+
+function recalc() {
+  const recipe = recipes.find(r => r.id === currentRecipeId);
+  if (!recipe) return;
+  recipe.labor = parseFloat(document.getElementById('laborCost').value) || 0;
+  recipe.delivery = parseFloat(document.getElementById('deliveryCost').value) || 0;
+  const ingCost = totalIngredientCost(recipe);
+  const tc = totalCost(recipe);
+  const costPer6 = tc / 6;
+  const costPer8 = tc / 8;
+  const costPer10 = tc / 10;
+
+  // Summary
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="stat-box"><label>ต้นทุนวัตถุดิบ</label><div class="value red">${fmt(ingCost)} บ.</div></div>
+    <div class="stat-box"><label>รวมต้นทุน/ก้อน</label><div class="value red">${fmt(tc)} บ.</div></div>
+    <div class="stat-box orange"><label>ต้นทุนต่อ 6 ชิ้น</label><div class="value">${fmt(costPer6)} บ.</div></div>
+    <div class="stat-box orange"><label>ต้นทุนต่อ 8 ชิ้น</label><div class="value">${fmt(costPer8)} บ.</div></div>
+    <div class="stat-box orange"><label>ต้นทุนต่อ 10 ชิ้น</label><div class="value">${fmt(costPer10)} บ.</div></div>
+    <div class="stat-box"><label>ต้นทุน/ปอนด์ (×1.7)</label><div class="value">${fmt(tc * 1.7)} บ.</div></div>
+  `;
+
+  // Pricing with sliders
+  if (!profitPcts[currentRecipeId]) profitPcts[currentRecipeId] = {6:50, 8:50, 10:50, pound:50};
+  const pp = profitPcts[currentRecipeId];
+
+  const cuts = [
+    {label:'🍰 ตัด 6 ชิ้น',  key:'6',     costPerCut: costPer6},
+    {label:'🍰 ตัด 8 ชิ้น',  key:'8',     costPerCut: costPer8},
+    {label:'🍰 ตัด 10 ชิ้น', key:'10',    costPerCut: costPer10},
+    {label:'📦 ราคา 1 ปอนด์', key:'pound', costPerCut: tc},
+  ];
+
+  document.getElementById('pricingGrid').innerHTML = cuts.map(c => {
+    const pct = pp[c.key] || 50;
+    const profit = c.costPerCut * (pct / 100);
+    const sellPrice = c.costPerCut + profit;
+    // slider fill %
+    const fillPct = ((pct - 0) / (200 - 0)) * 100;
+    return `
+      <div class="price-box">
+        <div class="cut-label">${c.label}</div>
+        <div class="cost-row">
+          <span class="cost-label">ต้นทุน/หน่วย</span>
+          <span class="cost-amount">${fmt(c.costPerCut)} บ.</span>
+        </div>
+        <div class="slider-wrap">
+          <div class="slider-header">
+            <span class="pct-label">% กำไรที่ต้องการ</span>
+            <span class="pct-val" id="pctDisplay_${c.key}">${pct}%</span>
+          </div>
+          <input type="range" min="0" max="200" step="1" value="${pct}"
+            style="background: linear-gradient(to right, var(--red) 0%, var(--red) ${fillPct}%, var(--beige-dark) ${fillPct}%, var(--beige-dark) 100%)"
+            oninput="updateSlider('${c.key}', +this.value, this)">
+          <div class="slider-ticks">
+            <span>0%</span><span>50%</span><span>100%</span><span>150%</span><span>200%</span>
+          </div>
+        </div>
+        <div class="price-result-row">
+          <div>
+            <div class="pr-label">กำไร</div>
+            <div class="pr-val green" id="profitAmt_${c.key}">${fmt(profit)} บ.</div>
+          </div>
+          <div style="text-align:right">
+            <div class="pr-label">ราคาขายที่แนะนำ</div>
+            <div class="pr-val red" id="sellPrice_${c.key}">${fmt(sellPrice)} บ.</div>
+          </div>
+        </div>
+        <div class="sell-suggest">ราคาขายปัดเป็น → <b id="sellRound_${c.key}">${roundPrice(sellPrice)} บ.</b></div>
+      </div>
+    `;
+  }).join('');
+}
+
+function roundPrice(p) {
+  // round to nearest 5
+  return Math.ceil(p / 5) * 5;
+}
+
+function updateSlider(key, pct, slider) {
+  if (!profitPcts[currentRecipeId]) profitPcts[currentRecipeId] = {};
+  profitPcts[currentRecipeId][key] = pct;
+
+  // update slider gradient
+  const fillPct = (pct / 200) * 100;
+  slider.style.background = `linear-gradient(to right, var(--red) 0%, var(--red) ${fillPct}%, var(--beige-dark) ${fillPct}%, var(--beige-dark) 100%)`;
+
+  // recalculate just this box
+  const recipe = recipes.find(r => r.id === currentRecipeId);
+  const tc = totalCost(recipe);
+  const costMap = { '6': tc/6, '8': tc/8, '10': tc/10, 'pound': tc };
+  const costPerCut = costMap[key];
+  const profit = costPerCut * (pct / 100);
+  const sellPrice = costPerCut + profit;
+
+  document.getElementById('pctDisplay_' + key).textContent = pct + '%';
+  document.getElementById('profitAmt_' + key).textContent = fmt(profit) + ' บ.';
+  document.getElementById('sellPrice_' + key).textContent = fmt(sellPrice) + ' บ.';
+  document.getElementById('sellRound_' + key).textContent = roundPrice(sellPrice) + ' บ.';
+}
+
+// ====== NEW RECIPE ======
+let nrRowCount = 0;
+
+function addNewRecipeRow() {
+  const container = document.getElementById('newRecipeRows');
+  const id = 'nrrow_' + (nrRowCount++);
+  const row = document.createElement('div');
+  row.className = 'nr-row';
+  row.id = id;
+  row.innerHTML = `
+    <div class="ing-picker">
+      <input class="ing-search" type="text" placeholder="🔍 ค้นหาวัตถุดิบ..." readonly
+        onclick="toggleIngDropdown('${id}')" oninput="filterIngDropdown('${id}', this.value)" data-selected="">
+      <div class="ing-dropdown" id="drop_${id}">
+        <div class="ing-search-box">
+          <input type="text" placeholder="พิมพ์ค้นหา..." oninput="filterIngDropdown('${id}', this.value)" id="dropsearch_${id}">
+        </div>
+        <div id="dropopts_${id}"></div>
+      </div>
+    </div>
+    <input type="text"   class="nr-unit" placeholder="หน่วย" style="background:var(--beige);" readonly>
+    <input type="number" class="nr-ref"  placeholder="อ้างอิง" style="background:var(--beige);" readonly>
+    <input type="number" class="nr-cost" placeholder="ทุน" style="background:var(--beige);" readonly>
+    <input type="number" class="nr-qty"  placeholder="ปริมาณ" min="0">
+    <button class="del-btn" onclick="document.getElementById('${id}').remove()">✕</button>
+  `;
+  container.appendChild(row);
+  renderIngOptions(id, '');
+
+  // close dropdown on outside click
+  document.addEventListener('click', function handler(e) {
+    const rowEl = document.getElementById(id);
+    if (!rowEl) { document.removeEventListener('click', handler); return; }
+    if (!rowEl.contains(e.target)) closeIngDropdown(id);
+  });
+}
+
+function renderIngOptions(rowId, query) {
+  const list = document.getElementById('dropopts_' + rowId);
+  if (!list) return;
+  const q = query.toLowerCase();
+  const filtered = ingredientDB.filter(i => i.name && i.name.toLowerCase().includes(q));
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="padding:12px;text-align:center;color:var(--gray);font-size:.82rem">ไม่พบวัตถุดิบ</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(item => `
+    <div class="ing-option" onclick="selectIngredient('${rowId}', '${item.name.replace(/'/g,"\\'")}')">
+      <div>
+        <div class="opt-name">${item.name}</div>
+        <div class="opt-meta">${item.unit} · อ้างอิง ${item.ref} ${item.unit}</div>
+      </div>
+      <div class="opt-cost">${item.cost} บ.</div>
+    </div>
+  `).join('');
+}
+
+function toggleIngDropdown(rowId) {
+  const drop = document.getElementById('drop_' + rowId);
+  const isOpen = drop.classList.contains('open');
+  // close all others
+  document.querySelectorAll('.ing-dropdown.open').forEach(d => d.classList.remove('open'));
+  if (!isOpen) {
+    drop.classList.add('open');
+    const searchInput = document.getElementById('dropsearch_' + rowId);
+    if (searchInput) { searchInput.value = ''; renderIngOptions(rowId, ''); setTimeout(() => searchInput.focus(), 50); }
+  }
+}
+
+function filterIngDropdown(rowId, q) {
+  const drop = document.getElementById('drop_' + rowId);
+  if (!drop.classList.contains('open')) drop.classList.add('open');
+  renderIngOptions(rowId, q);
+}
+
+function closeIngDropdown(rowId) {
+  const drop = document.getElementById('drop_' + rowId);
+  if (drop) drop.classList.remove('open');
+}
+
+function selectIngredient(rowId, name) {
+  const item = ingredientDB.find(d => d.name === name);
+  if (!item) return;
+  const row = document.getElementById(rowId);
+  row.querySelector('.ing-search').value = name;
+  row.querySelector('.ing-search').dataset.selected = name;
+  row.querySelector('.nr-unit').value = item.unit;
+  row.querySelector('.nr-ref').value = item.ref;
+  row.querySelector('.nr-cost').value = item.cost;
+  closeIngDropdown(rowId);
+  row.querySelector('.nr-qty').focus();
+}
+
+function saveNewRecipe() {
+  const name = document.getElementById('newMenuName').value.trim();
+  const emoji = document.getElementById('newMenuEmoji').value.trim() || '🍰';
+  const type = document.getElementById('newMenuType').value;
+  if (!name) { alert('กรุณาใส่ชื่อเมนู'); return; }
+  const rows = document.querySelectorAll('#newRecipeRows .nr-row');
+  const ingredients = [];
+  rows.forEach(row => {
+    const n = row.querySelector('.ing-search').dataset.selected || row.querySelector('.ing-search').value.trim();
+    const unit = row.querySelector('.nr-unit').value.trim() || 'กรัม';
+    const ref  = parseFloat(row.querySelector('.nr-ref').value) || 1;
+    const cost = parseFloat(row.querySelector('.nr-cost').value) || 0;
+    const qty  = parseFloat(row.querySelector('.nr-qty').value) || 0;
+    if (n) ingredients.push({name:n, unit, ref, cost, qty});
+  });
+  const id = 'recipe_' + Date.now();
+  recipes.push({id, name, emoji, type, labor:15, delivery:0, ingredients});
+  renderRecipeGrid();
+  saveRecipes();
+  document.getElementById('newMenuName').value = '';
+  document.getElementById('newMenuEmoji').value = '';
+  document.getElementById('newRecipeRows').innerHTML = '';
+  nrRowCount = 0;
+  addNewRecipeRow();
+  alert('✅ บันทึกสูตรเมนู "' + name + '" แล้ว!');
+  // switch to recipes tab
+  document.querySelectorAll('.section-tab').forEach(e => e.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(e => e.classList.remove('active'));
+  document.getElementById('tab-recipes').classList.add('active');
+  document.querySelector('.tab-btn').classList.add('active');
+}
+
+// ====== DB ======
+function renderDB() {
+  const search = document.getElementById('dbSearch').value.toLowerCase();
+  const grid = document.getElementById('dbGrid');
+  const filtered = ingredientDB.filter(i => i.name && i.name.toLowerCase().includes(search));
+  document.getElementById('dbCount').textContent = filtered.length + ' รายการ';
+  grid.innerHTML = filtered.map((item, idx) => `
+    <div class="db-item">
+      <div>
+        <div class="db-name">${item.name}</div>
+        <div class="db-meta">${item.unit} | อ้างอิง ${item.ref} ${item.unit}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="db-cost">${item.cost} บ.</div>
+        <button class="del-btn" onclick="deleteDBItem(${idx})" title="ลบ" style="font-size:.8rem">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function deleteDBItem(idx) {
+  const filtered = ingredientDB.filter(i => i.name && i.name.toLowerCase().includes(document.getElementById('dbSearch').value.toLowerCase()));
+  const item = filtered[idx];
+  const realIdx = ingredientDB.indexOf(item);
+  if (confirm('ลบ "' + item.name + '" ออกจากคลัง?')) {
+    ingredientDB.splice(realIdx, 1);
+    renderDB();
+    saveIngredients();
+  }
+}
+
+function showAddDBModal() {
+  document.getElementById('addDbArea').style.display = 'block';
+}
+
+function addToDB() {
+  const name = document.getElementById('dbNewName').value.trim();
+  const unit = document.getElementById('dbNewUnit').value.trim();
+  const ref = parseFloat(document.getElementById('dbNewRef').value);
+  const cost = parseFloat(document.getElementById('dbNewCost').value);
+  if (!name || !unit || isNaN(ref) || isNaN(cost)) { alert('กรุณากรอกข้อมูลให้ครบ'); return; }
+  ingredientDB.push({name, unit, ref, cost});
+  document.getElementById('dbNewName').value = '';
+  document.getElementById('dbNewUnit').value = '';
+  document.getElementById('dbNewRef').value = '';
+  document.getElementById('dbNewCost').value = '';
+  document.getElementById('addDbArea').style.display = 'none';
+  renderDB();
+  saveIngredients();
+}
+
+// ====== IMPORT EXCEL ======
+function importExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type: 'array'});
+
+      // find sheet named "วัตถุดิบ" or use first sheet
+      const sheetName = wb.SheetNames.includes('วัตถุดิบ') ? 'วัตถุดิบ' : wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval: ''});
+
+      let added = 0, skipped = 0, errors = [];
+      rows.forEach((row, idx) => {
+        // support both Thai and English column names
+        const name = String(row['ชื่อวัตถุดิบ'] || row['name'] || '').trim();
+        const unit = String(row['หน่วย'] || row['unit'] || '').trim();
+        const ref  = parseFloat(row['ปริมาณอ้างอิง'] || row['ref'] || 0);
+        const cost = parseFloat(row['ราคา (บาท)'] || row['ราคา'] || row['cost'] || 0);
+
+        if (!name) { skipped++; return; }
+        if (!unit || isNaN(ref) || ref <= 0 || isNaN(cost) || cost < 0) {
+          errors.push(`แถว ${idx + 2}: "${name}" — ข้อมูลไม่ครบ`);
+          return;
+        }
+        // check duplicate — update cost if exists
+        const existing = ingredientDB.find(d => d.name === name);
+        if (existing) {
+          existing.unit = unit; existing.ref = ref; existing.cost = cost;
+        } else {
+          ingredientDB.push({name, unit, ref, cost});
+        }
+        added++;
+      });
+
+      renderDB();
+      saveIngredients();
+      // show toast
+      const toast = document.getElementById('importToast');
+      if (errors.length > 0) {
+        toast.style.display = 'block';
+        toast.style.background = '#fef9e7';
+        toast.style.border = '1px solid #F39C12';
+        toast.style.color = '#7D6608';
+        toast.innerHTML = `✅ นำเข้า <b>${added}</b> รายการ  |  ⚠️ ข้ามไป <b>${skipped}</b>  |  ❌ มีปัญหา ${errors.length} แถว<br><small>${errors.slice(0,3).join('<br>')}</small>`;
+      } else {
+        toast.style.display = 'block';
+        toast.style.background = '#eafaf1';
+        toast.style.border = '1px solid #27AE60';
+        toast.style.color = '#1e8449';
+        toast.innerHTML = `✅ นำเข้าสำเร็จ <b>${added}</b> รายการ${skipped ? `  |  ข้ามแถวว่าง ${skipped} แถว` : ''}`;
+      }
+      setTimeout(() => { toast.style.display = 'none'; }, 5000);
+    } catch(err) {
+      alert('❌ เกิดข้อผิดพลาดในการอ่านไฟล์: ' + err.message);
+    }
+    // reset input so same file can be re-imported
+    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ====== DOWNLOAD TEMPLATE (generate via SheetJS) ======
+function downloadImportGuide() {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: template
+  const headers = ['ชื่อวัตถุดิบ', 'หน่วย', 'ปริมาณอ้างอิง', 'ราคา (บาท)'];
+  const samples = [
+    ['cream cheese ฟิลาเดลเฟีย', 'กรัม', 2000, 835],
+    ['ไข่ไก่', 'ฟอง', 30, 135],
+    ['น้ำตาล', 'กรัม', 5000, 139],
+    ['แป้งเค้กริบบิ้น', 'กรัม', 1000, 42],
+    ['Heavy cream anchor', 'กรัม', 1000, 229],
+    ['เนยสด', 'กรัม', 500, 180],
+    ['นมสด', 'กรัม', 2000, 100],
+    ['วิปปิ้งครีม', 'กรัม', 1000, 229],
+    ['ผงโกโก้', 'กรัม', 1000, 350],
+    ['กลิ่นวนิลา', 'ml', 360, 850],
+  ];
+  const wsData = [headers, ...samples];
+  const ws1 = XLSX.utils.aoa_to_sheet(wsData);
+
+  // column widths
+  ws1['!cols'] = [{wch:36},{wch:14},{wch:20},{wch:18}];
+
+  XLSX.utils.book_append_sheet(wb, ws1, 'วัตถุดิบ');
+
+  // Sheet 2: instructions
+  const guide = [
+    ['คอลัมน์', 'คำอธิบาย', 'ตัวอย่าง'],
+    ['ชื่อวัตถุดิบ', 'ชื่อของวัตถุดิบ', 'cream cheese, ไข่ไก่, น้ำตาล'],
+    ['หน่วย', 'หน่วยการวัด', 'กรัม, ml, ฟอง, ลูก, ชิ้น, ชุด'],
+    ['ปริมาณอ้างอิง', 'จำนวนในบรรจุภัณฑ์ที่ซื้อ', '1000 (แป้ง 1 กก.), 30 (ไข่ 1 แผง)'],
+    ['ราคา (บาท)', 'ราคาซื้อต่อบรรจุภัณฑ์', '42, 135, 835'],
+    ['', '', ''],
+    ['หมายเหตุ', 'อย่าเปลี่ยนชื่อ Header ในแถวแรก', ''],
+    ['', 'ลบแถวตัวอย่างออกแล้วใส่ข้อมูลจริง', ''],
+    ['', 'ถ้าชื่อซ้ำกับที่มีอยู่ ระบบจะอัปเดตข้อมูลให้อัตโนมัติ', ''],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(guide);
+  ws2['!cols'] = [{wch:22},{wch:46},{wch:36}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'คำอธิบาย');
+
+  XLSX.writeFile(wb, 'lbb-ingredients-import-template.xlsx');
+}
+
+// ====== GOOGLE SHEETS SYNC ======
+const API_URL = 'https://script.google.com/macros/s/AKfycbzpnWe12IiSoIVWkf_k1kVXmf7YojBEtbGj9ZU1chp9cNWJwAe4aV4yrnUzerl4tS269Q/exec';
+
+function showStatus(msg, type) {
+  type = type || 'info';
+  var bar = document.getElementById('syncBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'syncBar';
+    bar.style.cssText = 'position:fixed;bottom:18px;right:18px;z-index:9999;padding:10px 20px;border-radius:12px;font-family:Sarabun,sans-serif;font-size:.88rem;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,0.18);max-width:320px;display:none';
+    document.body.appendChild(bar);
+  }
+  var colors = {info:'background:#1A1A1A;color:#fff', success:'background:#27AE60;color:#fff', error:'background:#C0392B;color:#fff', loading:'background:#E67E22;color:#fff'};
+  bar.setAttribute('style', bar.getAttribute('style').replace(/background:[^;]+;color:[^;]+/g,'') + ';' + (colors[type]||colors.info));
+  bar.textContent = msg;
+  bar.style.display = 'block';
+  if (type !== 'loading') setTimeout(function(){ bar.style.display='none'; }, 3500);
+}
+
+// ====== LOCAL STORAGE (ไม่หายตอน refresh) ======
+function saveLocal() {
+  try {
+    localStorage.setItem('lbb_ingredients', JSON.stringify(ingredientDB));
+    localStorage.setItem('lbb_recipes', JSON.stringify(recipes));
+  } catch(e) {}
+}
+
+function loadLocal() {
+  try {
+    var ing = localStorage.getItem('lbb_ingredients');
+    var rec = localStorage.getItem('lbb_recipes');
+    if (ing) { var d = JSON.parse(ing); if (d.length > 0) ingredientDB = d; }
+    if (rec) { var d = JSON.parse(rec); if (d.length > 0) recipes = d; }
+    return true;
+  } catch(e) { return false; }
+}
+
+// ====== GOOGLE SHEETS via JSONP ======
+function jsonp(url, callback) {
+  var cbName = 'lbb_cb_' + Date.now() + '_' + Math.floor(Math.random()*9999);
+  var script = document.createElement('script');
+  var done = false;
+  var timer = setTimeout(function() {
+    if (done) return;
+    done = true;
+    try { document.body.removeChild(script); } catch(e) {}
+    delete window[cbName];
+    callback(new Error('timeout'));
+  }, 12000);
+  window[cbName] = function(data) {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    try { document.body.removeChild(script); } catch(e) {}
+    delete window[cbName];
+    callback(null, data);
+  };
+  script.onerror = function() {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    try { document.body.removeChild(script); } catch(e) {}
+    delete window[cbName];
+    callback(new Error('script error'));
+  };
+  script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + cbName;
+  document.body.appendChild(script);
+}
+
+function loadFromSheets() {
+  showStatus('⏳ กำลังโหลดข้อมูล...', 'loading');
+  jsonp(API_URL + '?action=getAll', function(err, json) {
+    if (err || !json || !json.ok) {
+      showStatus('📱 โหลดจาก local storage', 'info');
+      loadLocal();
+      renderRecipeGrid();
+      renderDB();
+      return;
+    }
+    if (json.ingredients && json.ingredients.length > 0) ingredientDB = json.ingredients;
+    if (json.recipes && json.recipes.length > 0) recipes = json.recipes;
+    saveLocal();
+    if (!json.ingredients.length && !json.recipes.length) {
+      showStatus('☁️ Sheets ว่าง — กด Sync ขึ้น Sheet', 'info');
+    } else {
+      showStatus('✅ โหลดข้อมูลสำเร็จ', 'success');
+    }
+    renderRecipeGrid();
+    renderDB();
+  });
+}
+
+function saveIngredients() {
+  saveLocal();
+  var data = encodeURIComponent(JSON.stringify(ingredientDB));
+  jsonp(API_URL + '?action=saveIngredients&data=' + data, function(err, json) {
+    if (err || !json || !json.ok) { showStatus('💾 บันทึก local แล้ว (Sheets offline)', 'info'); return; }
+    showStatus('✅ บันทึกวัตถุดิบแล้ว', 'success');
+  });
+}
+
+function saveRecipes() {
+  saveLocal();
+  var data = encodeURIComponent(JSON.stringify(recipes));
+  jsonp(API_URL + '?action=saveRecipes&data=' + data, function(err, json) {
+    if (err || !json || !json.ok) { showStatus('💾 บันทึก local แล้ว (Sheets offline)', 'info'); return; }
+    showStatus('✅ บันทึกสูตรแล้ว', 'success');
+  });
+}
+
+// ====== SYNC ALL ======
+function syncAllToSheets() {
+  if (!confirm('อัปโหลดข้อมูลทั้งหมดขึ้น Google Sheets?\nวัตถุดิบ ' + ingredientDB.length + ' รายการ และสูตร ' + recipes.length + ' รายการ')) return;
+  showStatus('⏳ กำลัง Sync วัตถุดิบ...', 'loading');
+  var ingData = encodeURIComponent(JSON.stringify(ingredientDB));
+  jsonp(API_URL + '?action=saveIngredients&data=' + ingData, function(err, json) {
+    if (err || !json || !json.ok) { showStatus('❌ Sync วัตถุดิบไม่สำเร็จ', 'error'); return; }
+    showStatus('⏳ กำลัง Sync สูตร...', 'loading');
+    var recData = encodeURIComponent(JSON.stringify(recipes));
+    jsonp(API_URL + '?action=saveRecipes&data=' + recData, function(err2, json2) {
+      if (err2 || !json2 || !json2.ok) { showStatus('❌ Sync สูตรไม่สำเร็จ', 'error'); return; }
+      showStatus('✅ Sync สำเร็จ! วัตถุดิบ ' + ingredientDB.length + ' รายการ สูตร ' + recipes.length + ' รายการ', 'success');
+    });
+  });
+}
+
+// ====== INIT ======
+function init() {
+  // แสดงข้อมูล default ก่อนเลย ไม่รอ Sheets
+  renderRecipeGrid();
+  renderDB();
+  addNewRecipeRow();
+  // แล้วค่อย sync จาก Sheets ใน background
+  setTimeout(loadFromSheets, 500);
+}
+init();
+</script>
+</body>
+</html>
