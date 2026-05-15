@@ -299,9 +299,9 @@
       <span>ระบบคำนวณต้นทุนขนม</span>
     </div>
     <div class="tab-nav">
-      <button class="tab-btn active" onclick="switchTab('recipes')">🎂 สูตรขนม</button>
-      <button class="tab-btn" onclick="switchTab('newrecipe')">➕ สร้างสูตรใหม่</button>
-      <button class="tab-btn" onclick="switchTab('db')">📦 คลังวัตถุดิบ</button>
+      <button class="tab-btn active" onclick="switchTab('recipes',this)">🎂 สูตรขนม</button>
+      <button class="tab-btn" onclick="switchTab('newrecipe',this)">➕ สร้างสูตรใหม่</button>
+      <button class="tab-btn" onclick="switchTab('db',this)">📦 คลังวัตถุดิบ</button>
     </div>
   </div>
 </header>
@@ -676,11 +676,11 @@ function fmtB(n) { return isNaN(n) ? '-' : n.toFixed(2) + ' บ.'; }
 function pctColor(p) { return p >= 0 ? 'profit-pos' : 'profit-neg'; }
 
 // ====== TABS ======
-function switchTab(tab) {
+function switchTab(tab, el) {
   document.querySelectorAll('.section-tab').forEach(e => e.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(e => e.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  event.currentTarget.classList.add('active');
+  if (el) el.classList.add('active');
   if (tab === 'db') renderDB();
 }
 
@@ -1211,7 +1211,7 @@ function downloadImportGuide() {
 }
 
 // ====== GOOGLE SHEETS SYNC ======
-const API_URL = 'https://script.google.com/macros/s/AKfycbyBS8RkOd-NuM7b9GPwkwvHvikt3oqZULveBElZsIbhNm491JWWbN7dm9ndyCdBdNnYCw/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxq3z5SLb-Ms0btYd0cX_61rtA2VuipjjZdl5erm6mCGbb-b4eqKeBLykcEsLg-BEkFWQ/exec';
 
 function showStatus(msg, type) {
   type = type || 'info';
@@ -1229,20 +1229,53 @@ function showStatus(msg, type) {
   if (type !== 'loading') setTimeout(function(){ bar.style.display='none'; }, 3500);
 }
 
+// ====== LOCAL STORAGE (ไม่หายตอน refresh) ======
+function saveLocal() {
+  try {
+    localStorage.setItem('lbb_ingredients', JSON.stringify(ingredientDB));
+    localStorage.setItem('lbb_recipes', JSON.stringify(recipes));
+  } catch(e) {}
+}
+
+function loadLocal() {
+  try {
+    var ing = localStorage.getItem('lbb_ingredients');
+    var rec = localStorage.getItem('lbb_recipes');
+    if (ing) { var d = JSON.parse(ing); if (d.length > 0) ingredientDB = d; }
+    if (rec) { var d = JSON.parse(rec); if (d.length > 0) recipes = d; }
+    return true;
+  } catch(e) { return false; }
+}
+
+// ====== GOOGLE SHEETS via JSONP ======
 function jsonp(url, callback) {
-  var cbName = 'cb_' + Date.now();
-  window[cbName] = function(data) {
+  var cbName = 'lbb_cb_' + Date.now() + '_' + Math.floor(Math.random()*9999);
+  var script = document.createElement('script');
+  var done = false;
+  var timer = setTimeout(function() {
+    if (done) return;
+    done = true;
+    try { document.body.removeChild(script); } catch(e) {}
     delete window[cbName];
-    document.body.removeChild(script);
+    callback(new Error('timeout'));
+  }, 12000);
+  window[cbName] = function(data) {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    try { document.body.removeChild(script); } catch(e) {}
+    delete window[cbName];
     callback(null, data);
   };
-  var script = document.createElement('script');
   script.onerror = function() {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    try { document.body.removeChild(script); } catch(e) {}
     delete window[cbName];
-    document.body.removeChild(script);
-    callback(new Error('JSONP failed'));
+    callback(new Error('script error'));
   };
-  script.src = url + '&callback=' + cbName;
+  script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + cbName;
   document.body.appendChild(script);
 }
 
@@ -1250,15 +1283,17 @@ function loadFromSheets() {
   showStatus('⏳ กำลังโหลดข้อมูล...', 'loading');
   jsonp(API_URL + '?action=getAll', function(err, json) {
     if (err || !json || !json.ok) {
-      showStatus('⚠️ ใช้ข้อมูล offline', 'error');
+      showStatus('📱 โหลดจาก local storage', 'info');
+      loadLocal();
       renderRecipeGrid();
       renderDB();
       return;
     }
     if (json.ingredients && json.ingredients.length > 0) ingredientDB = json.ingredients;
     if (json.recipes && json.recipes.length > 0) recipes = json.recipes;
-    if (json.ingredients.length === 0 && json.recipes.length === 0) {
-      showStatus('☁️ Sheets ว่างอยู่ — กด Sync ขึ้น Sheet ที่แท็บคลังวัตถุดิบ', 'info');
+    saveLocal();
+    if (!json.ingredients.length && !json.recipes.length) {
+      showStatus('☁️ Sheets ว่าง — กด Sync ขึ้น Sheet', 'info');
     } else {
       showStatus('✅ โหลดข้อมูลสำเร็จ', 'success');
     }
@@ -1267,45 +1302,64 @@ function loadFromSheets() {
   });
 }
 
+// ส่งข้อมูลทีละ 10 รายการเพื่อไม่ให้ URL ยาวเกิน limit
+function saveChunked(action, dataArr, done) {
+  // สำหรับ recipes ส่งทีละ 1 เพราะ ingredients_json ยาว
+  // สำหรับ ingredients ส่งทีละ 15
+  var CHUNK = action.indexOf('ecipe') > -1 ? 1 : 15;
+  var chunks = [];
+  for (var i = 0; i < dataArr.length; i += CHUNK) chunks.push(dataArr.slice(i, i + CHUNK));
+  function sendChunk(idx) {
+    if (idx >= chunks.length) { done(true); return; }
+    var a = idx === 0 ? action : action + 'Append';
+    var data = encodeURIComponent(JSON.stringify(chunks[idx]));
+    jsonp(API_URL + '?action=' + a + '&data=' + data, function(err, json) {
+      if (err || !json || !json.ok) { done(false); return; }
+      sendChunk(idx + 1);
+    });
+  }
+  if (chunks.length === 0) {
+    jsonp(API_URL + '?action=' + action + '&data=' + encodeURIComponent('[]'), function(err, json) { done(!err && json && json.ok); });
+  } else {
+    sendChunk(0);
+  }
+}
+
 function saveIngredients() {
-  showStatus('💾 กำลังบันทึกวัตถุดิบ...', 'loading');
-  var data = encodeURIComponent(JSON.stringify(ingredientDB));
-  jsonp(API_URL + '?action=saveIngredients&data=' + data, function(err, json) {
-    if (err || !json || !json.ok) { showStatus('❌ บันทึกไม่สำเร็จ', 'error'); return; }
-    showStatus('✅ บันทึกวัตถุดิบแล้ว', 'success');
+  saveLocal();
+  saveChunked('saveIngredients', ingredientDB, function(ok) {
+    showStatus(ok ? '✅ บันทึกวัตถุดิบแล้ว' : '💾 บันทึก local แล้ว (Sheets offline)', ok ? 'success' : 'info');
   });
 }
 
 function saveRecipes() {
-  showStatus('💾 กำลังบันทึกสูตร...', 'loading');
-  var data = encodeURIComponent(JSON.stringify(recipes));
-  jsonp(API_URL + '?action=saveRecipes&data=' + data, function(err, json) {
-    if (err || !json || !json.ok) { showStatus('❌ บันทึกไม่สำเร็จ', 'error'); return; }
-    showStatus('✅ บันทึกสูตรแล้ว', 'success');
+  saveLocal();
+  saveChunked('saveRecipes', recipes, function(ok) {
+    showStatus(ok ? '✅ บันทึกสูตรแล้ว' : '💾 บันทึก local แล้ว (Sheets offline)', ok ? 'success' : 'info');
   });
 }
 
 // ====== SYNC ALL ======
 function syncAllToSheets() {
-  if (!confirm('อัปโหลดข้อมูลทั้งหมดขึ้น Google Sheets?
-วัตถุดิบ ' + ingredientDB.length + ' รายการ และสูตร ' + recipes.length + ' รายการ')) return;
+  if (!confirm('อัปโหลดข้อมูลทั้งหมดขึ้น Google Sheets?\nวัตถุดิบ ' + ingredientDB.length + ' รายการ และสูตร ' + recipes.length + ' รายการ')) return;
   showStatus('⏳ กำลัง Sync วัตถุดิบ...', 'loading');
-  var ingData = encodeURIComponent(JSON.stringify(ingredientDB));
-  jsonp(API_URL + '?action=saveIngredients&data=' + ingData, function(err, json) {
-    if (err || !json || !json.ok) { showStatus('❌ Sync วัตถุดิบไม่สำเร็จ', 'error'); return; }
+  saveChunked('saveIngredients', ingredientDB, function(ok) {
+    if (!ok) { showStatus('❌ Sync วัตถุดิบไม่สำเร็จ', 'error'); return; }
     showStatus('⏳ กำลัง Sync สูตร...', 'loading');
-    var recData = encodeURIComponent(JSON.stringify(recipes));
-    jsonp(API_URL + '?action=saveRecipes&data=' + recData, function(err2, json2) {
-      if (err2 || !json2 || !json2.ok) { showStatus('❌ Sync สูตรไม่สำเร็จ', 'error'); return; }
-      showStatus('✅ Sync สำเร็จ! วัตถุดิบ ' + ingredientDB.length + ' รายการ สูตร ' + recipes.length + ' รายการ', 'success');
+    saveChunked('saveRecipes', recipes, function(ok2) {
+      showStatus(ok2 ? '✅ Sync สำเร็จ! วัตถุดิบ ' + ingredientDB.length + ' สูตร ' + recipes.length + ' รายการ' : '❌ Sync สูตรไม่สำเร็จ', ok2 ? 'success' : 'error');
     });
   });
 }
 
 // ====== INIT ======
 function init() {
+  // แสดงข้อมูล default ก่อนเลย ไม่รอ Sheets
+  renderRecipeGrid();
+  renderDB();
   addNewRecipeRow();
-  loadFromSheets();
+  // แล้วค่อย sync จาก Sheets ใน background
+  setTimeout(loadFromSheets, 500);
 }
 init();
 </script>
